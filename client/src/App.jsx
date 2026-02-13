@@ -26,7 +26,7 @@ import CourseDetail from "./pages/CourseDetails";
 import CategoryCourses from "./pages/CategoryCourses";
 import CoursesOverview from "./pages/CoursesOverview";
 import CreateLearningRoom from "./pages/CreateLearningRoom";
-import ViewRoom from "./pages/ViewRoom";
+
 import JoinRoom from "./pages/JoinRoom";
 import RoomPage from "./pages/RoomPage";
 import StudentRoom from "./pages/StudentRoom";
