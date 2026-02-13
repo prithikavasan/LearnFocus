@@ -2,7 +2,8 @@ import { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { GoogleLogin } from '@react-oauth/google';
-import * as jwt_decode from 'jwt-decode';
+import { jwtDecode } from "jwt-decode";
+
 import API from "../services/api";
 
 function Login() {
@@ -74,7 +75,8 @@ if (!user.skills || user.skills.length === 0) {
     setSuccess("");
 
     try {
-      const decoded = jwt_decode.default(credentialResponse.credential);
+      const decoded = jwtDecode(credentialResponse.credential);
+
       const res = await API.post("/auth/google", { name: decoded.name, email: decoded.email, role });
       loginUser(res.data.user, res.data.token);
       showSuccess("Logged in successfully via Google!");
