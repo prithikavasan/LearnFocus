@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 import API from "../services/api";
-import { Clock, Target, Flame, BarChart3, CheckCircle } from "lucide-react";
+import {Target, Flame, BarChart3, CheckCircle } from "lucide-react";
 import { Line, Doughnut } from "react-chartjs-2";
 import {
   Chart as ChartJS,
