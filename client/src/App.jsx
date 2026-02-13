@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { Toaster } from "react-hot-toast";
 
 import Home from "./pages/Home";
 import Login from "./pages/Login";
@@ -24,10 +25,19 @@ import StudentCourses from "./pages/StudentCourses";
 import CourseDetail from "./pages/CourseDetails";
 import CategoryCourses from "./pages/CategoryCourses";
 import CoursesOverview from "./pages/CoursesOverview";
+import CreateLearningRoom from "./pages/CreateLearningRoom";
+import ViewRoom from "./pages/ViewRoom";
+import JoinRoom from "./pages/JoinRoom";
+import RoomPage from "./pages/RoomPage";
+import StudentRoom from "./pages/StudentRoom";
+import Profile from "./pages/Profile";
 
 function AppRoutes() {
   return (
+    <>
+    <Toaster position="top-right" reverseOrder={false} />
     <Routes>
+      
       {/* Public routes */}
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
@@ -38,8 +48,10 @@ function AppRoutes() {
       <Route path="/mobile-focus/:sessionId" element={<MobileFocusJoin />} />
       <Route path="/chat/:chatId" element={<ChatPage />} />
       <Route path="/student/courses" element={<StudentCourses />} />
-
-
+      <Route path="/instructor/create-room" element={<CreateLearningRoom />} />
+      <Route path="/room/:roomId" element={<StudentRoom />} />
+      <Route path="/join-room" element={<JoinRoom />} />
+      <Route path="/profile" element={<Profile />} />
 <Route
   path="/instructor"
   element={
@@ -83,12 +95,20 @@ function AppRoutes() {
     </InstructorRoute>
   }
 />
-
-
-
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" />} />
+      {/* <Route path="/instructor/room/:roomId" element={<ViewRoom />} /> */}
+      <Route
+  path="/instructor/room/:roomId"
+  element={
+    <InstructorRoute>
+      <RoomPage />
+    </InstructorRoute>
+  }
+/>
+
     </Routes>
+    </>
   );
 }
 

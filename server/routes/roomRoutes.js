@@ -1,37 +1,77 @@
 import express from "express";
+import {
+  createRoom,
+  joinRoom,
+  getRooms,
+  getRoomById,
+  generateRoomCode,
+  updateRoomRule,
+  getStudentRooms,
+  updateBasic,
+  updateCourses,
+  updateTasks,
+  updateMaterials,
+  toggleCourseComplete,   // ✅ add this
+  toggleTaskComplete,
+  updateLive,
+  updateStudents,
+  removeStudent,
+  resetStudentProgress
+} from "../controllers/roomController.js";
 import protect from "../middleware/authMiddleware.js";
-import Room from "../models/Room.js";
-import crypto from "crypto";
 
 const router = express.Router();
 
-/* CREATE ROOM */
-router.post("/rooms/create", protect, async (req, res) => {
-  const { courseId, customPasskey } = req.body;
+/* =====================================================
+   ROOM ROUTES
+   Base URL example: /api/rooms
+===================================================== */
 
-  const passkey =
-    customPasskey?.trim() ||
-    crypto.randomBytes(4).toString("hex"); // auto-generate
+/* ================= CREATE ROOM ================= */
+// Instructor creates a room
+router.post("/", protect, createRoom);
 
-  const room = await Room.create({
-    course: courseId,
-    instructor: req.user._id,
-    passkey,
-  });
+/* ================= JOIN ROOM ================= */
+// Student joins using room code
+router.post("/join", protect, joinRoom);
 
-  res.status(201).json(room);
-});
+/* ================= STUDENT ROOMS ================= */
+// ⚠️ MUST come before /:roomId
+router.get("/student/rooms", protect, getStudentRooms);
+router.put("/:roomId/basic", protect, updateBasic);
+router.put("/:roomId/courses", protect, updateCourses);
+router.put("/:roomId/tasks", protect, updateTasks);
 
-/* JOIN ROOM */
-router.post("/rooms/join", protect, async (req, res) => {
-  const { passkey } = req.body;
+router.put("/:roomId/materials", protect, updateMaterials);
 
-  const room = await Room.findOne({ passkey, isActive: true });
-  if (!room) {
-    return res.status(404).json({ message: "Invalid passkey" });
-  }
+router.put("/:roomId/live", protect, updateLive);
 
-  res.json(room);
-});
+
+/* ================= GENERATE ROOM CODE ================= */
+// Instructor generates room code
+router.post("/:roomId/generate-code", protect, generateRoomCode);
+
+/* ================= UPDATE ROOM RULE ================= */
+// Instructor updates rules
+router.put("/:roomId/update-rule", protect, updateRoomRule);
+
+/* ================= INSTRUCTOR ROOMS ================= */
+// Get all rooms created by instructor
+router.get("/", protect, getRooms);
+// Toggle course completion
+router.post("/:roomId/courses/:courseId/toggle-complete", protect, toggleCourseComplete);
+
+// Toggle task completion
+router.post("/:roomId/tasks/:taskId/toggle-complete", protect, toggleTaskComplete);
+
+/* ================= GET ROOM BY ID ================= */
+// ⚠️ MUST BE LAST (dynamic route)
+router.delete("/:roomId/students/:studentId", protect, removeStudent);
+router.put("/:roomId/students/:studentId/reset", protect, resetStudentProgress);
+
+router.put("/:roomId/students", protect, updateStudents);
+router.get("/:roomId", protect, getRoomById);
+
+
 
 export default router;

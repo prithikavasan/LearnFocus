@@ -19,17 +19,19 @@ function InstructorDashboard() {
   const { user, token } = useContext(AuthContext);
   const navigate = useNavigate();
 
+  /* ================= STATE ================= */
   const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+  const [rooms, setRooms] = useState([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
+  const [loadingRoomCode, setLoadingRoomCode] = useState(false);
 
   /* ================= CHAT ================= */
   const [showChatList, setShowChatList] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [activeCourseChat, setActiveCourseChat] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
-
-  /* ================= ROOM ================= */
-  const [rooms, setRooms] = useState({}); // store courseId => roomCode
 
   /* ================= SOCKET ================= */
   const socketRef = useRef(null);
@@ -91,19 +93,41 @@ function InstructorDashboard() {
     if (!user?._id) return;
 
     const fetchCourses = async () => {
-      setLoading(true);
+      setLoadingCourses(true);
       try {
-        const res = await API.get("/courses");
+        const res = await API.get("/courses", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         setCourses(res.data || []);
       } catch (err) {
         console.error("❌ Course fetch failed", err);
       } finally {
-        setLoading(false);
+        setLoadingCourses(false);
       }
     };
 
     fetchCourses();
-  }, [user?._id]);
+  }, [user?._id, token]);
+
+  /* ================= FETCH ROOMS ================= */
+  const fetchRooms = async () => {
+    setLoadingRooms(true);
+    try {
+      const res = await API.get("/rooms", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setRooms(res.data || []);
+    } catch (err) {
+      console.error("❌ Failed to fetch rooms", err);
+    } finally {
+      setLoadingRooms(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user?._id) return;
+    fetchRooms();
+  }, [user?._id, token]);
 
   /* ================= FETCH CONVERSATIONS ================= */
   useEffect(() => {
@@ -127,7 +151,6 @@ function InstructorDashboard() {
   const openChat = (conv) => {
     const courseId = conv.course?._id || conv.courseId;
     const student = conv.otherUser || conv.user;
-
     if (!courseId || !student?._id) return;
 
     setActiveCourseChat(courseId);
@@ -147,27 +170,27 @@ function InstructorDashboard() {
   };
 
   /* ================= CREATE ROOM ================= */
-  const handleCreateRoom = async (courseId) => {
+  const [newRoom, setNewRoom] = useState({ name: "", skill: "", duration: 30 });
+
+  const handleCreateRoom = async () => {
+    if (!newRoom.name || !newRoom.skill || !newRoom.duration) {
+      alert("Please fill all fields");
+      return;
+    }
     try {
-      // Check if room already exists
-      if (rooms[courseId]) {
-        alert(`Room already exists! Share this code: ${rooms[courseId]}`);
-        return;
-      }
+      // Ensure duration is a number
+      const payload = { ...newRoom, duration: parseInt(newRoom.duration) };
 
-      // Create new room on server
-      const res = await API.post(
-        `/courses/${courseId}/create-room`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const roomCode = res.data.roomCode;
-      setRooms((prev) => ({ ...prev, [courseId]: roomCode }));
-      alert(`Room created! Share this code with students: ${roomCode}`);
+      await API.post("/rooms", payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      alert("Room created successfully!");
+      setShowCreateRoomModal(false);
+      setNewRoom({ name: "", skill: "", duration: 30 });
+      fetchRooms();
     } catch (err) {
-      console.error("❌ Failed to create room", err);
-      alert("Failed to create room");
+      console.error(err.response?.data || err);
+      alert(err.response?.data?.message || "Failed to create room");
     }
   };
 
@@ -177,7 +200,9 @@ function InstructorDashboard() {
   const handleDeleteCourse = async (courseId) => {
     if (!window.confirm("Are you sure you want to delete this course?")) return;
     try {
-      await API.delete(`/courses/${courseId}`);
+      await API.delete(`/courses/${courseId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setCourses(courses.filter((c) => c._id !== courseId));
       alert("Course deleted successfully");
     } catch (err) {
@@ -186,6 +211,26 @@ function InstructorDashboard() {
     }
   };
   const handleUpdateCourse = (courseId) => alert(`Update course ${courseId}`);
+
+  const handleViewRoom = async (room) => {
+  try {
+    setLoadingRoomCode(true);
+    let updatedRoom = room;
+    if (!room.roomCode) {
+      const res = await API.post(`/rooms/${room._id}/generate-code`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      updatedRoom = res.data.room;
+    }
+    navigate(`/instructor/room/${updatedRoom._id}`); // ✅ Use instructor path
+  } catch (err) {
+    console.error("Error viewing room:", err);
+    alert("Failed to open room");
+  } finally {
+    setLoadingRoomCode(false);
+  }
+};
+
 
   /* ================= UI ================= */
   return (
@@ -206,7 +251,110 @@ function InstructorDashboard() {
           </button>
         </div>
 
-        {/* ACTION CARDS */}
+        {/* ================= LEARNING ROOM CREATION ================= */}
+        <div className="bg-white rounded-3xl shadow-md p-6 mb-10">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Study Room</h2>
+          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-3xl shadow-xl p-8 mb-10 text-white relative overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-black/10 rounded-full blur-2xl"></div>
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+              <div>
+                <h2 className="text-2xl font-bold mb-2">Create Learning Room</h2>
+                <p className="text-white/80 max-w-xl">
+                  Start a focused learning room for your students. Set rules, assign tasks, monitor focus, and guide them effectively.
+                </p>
+              </div>
+             <button
+            onClick={() => navigate("/instructor/create-room")}
+            className="bg-white text-indigo-600 font-semibold px-8 py-4 rounded-2xl shadow-lg hover:scale-105 hover:shadow-2xl transition-all duration-300"
+          >
+            + Create Room
+          </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ================= CREATE ROOM MODAL ================= */}
+        {showCreateRoomModal && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+            <div className="bg-white rounded-2xl p-6 w-96 relative">
+              <h2 className="text-xl font-bold mb-4">New Learning Room</h2>
+              <input
+                type="text"
+                placeholder="Room Name"
+                value={newRoom.name}
+                onChange={(e) => setNewRoom({ ...newRoom, name: e.target.value })}
+                className="w-full mb-3 p-2 border rounded"
+              />
+              <input
+                type="text"
+                placeholder="Skill"
+                value={newRoom.skill}
+                onChange={(e) => setNewRoom({ ...newRoom, skill: e.target.value })}
+                className="w-full mb-3 p-2 border rounded"
+              />
+              <input
+                type="number"
+                placeholder="Duration (mins)"
+                value={newRoom.duration}
+                onChange={(e) => setNewRoom({ ...newRoom, duration: parseInt(e.target.value) })}
+                className="w-full mb-3 p-2 border rounded"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowCreateRoomModal(false)}
+                  className="px-4 py-2 bg-gray-300 rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateRoom}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded"
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================= MY LEARNING ROOMS ================= */}
+        {/* ================= MY LEARNING ROOMS ================= */}
+<div className="bg-white rounded-3xl shadow-md p-6 mb-10">
+  <h2 className="text-xl font-bold text-gray-800 mb-4">My Learning Rooms</h2>
+  {loadingRooms ? (
+    <p>Loading rooms...</p>
+  ) : rooms.length === 0 ? (
+    <p className="text-gray-400">No rooms created yet</p>
+  ) : (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {rooms.map((room) => (
+        <div
+          key={room._id}
+          className="bg-gray-50 p-4 rounded-xl shadow hover:shadow-lg transition"
+        >
+          {/* Display room name */}
+          <h3 className="font-bold text-lg">{room.roomName || room.name || "Unnamed Room"}</h3>
+          {/* Display skill if exists */}
+          {room.skill && <p>Skill: {room.skill}</p>}
+          
+         <button
+  className="mt-2 bg-indigo-500 text-white px-3 py-1 rounded disabled:opacity-50"
+  onClick={() => handleViewRoom(room)}
+  disabled={loadingRoomCode}
+>
+  View Room
+</button>
+
+
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+
+
+        {/* ================= ACTION CARDS ================= */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
           <ActionCard icon={<BookOpen size={32} />} title="My Courses" desc="Manage courses" />
           <ActionCard icon={<UploadCloud size={32} />} title="Upload" desc="Materials" />
@@ -219,74 +367,33 @@ function InstructorDashboard() {
           />
         </div>
 
-        {/* COURSES */}
+        {/* ================= COURSES ================= */}
         <h2 className="text-2xl font-bold mb-4 text-gray-800">My Courses</h2>
-        {loading ? (
+        {loadingCourses ? (
           <p>Loading...</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {courses.map((course) => (
-              <div
-                key={course._id}
-                className="bg-white p-5 rounded-2xl shadow-md flex flex-col justify-between hover:shadow-lg transition duration-300"
-              >
-                <div className="mb-3 h-36 bg-gray-100 rounded-xl flex items-center justify-center overflow-hidden">
-                  {course.thumbnail ? (
-                    <img
-                      src={course.thumbnail}
-                      alt={course.title}
-                      className="h-full w-full object-cover rounded-xl"
-                    />
-                  ) : (
-                    <span className="text-gray-400">No Image</span>
-                  )}
-                </div>
-
+              <div key={course._id} className="bg-white p-5 rounded-2xl shadow-md flex flex-col justify-between hover:shadow-lg transition duration-300">
+               
                 <div className="mb-3">
                   <h3 className="font-bold text-lg text-gray-800 mb-1">{course.title}</h3>
                   <p className="text-sm text-gray-600 line-clamp-3">{course.description}</p>
                   <span
                     className={`inline-block mt-2 px-3 py-1 text-sm rounded-full font-semibold ${
-                      course.status === "Published"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-yellow-100 text-yellow-700"
+                      course.status === "Published" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
                     }`}
                   >
                     {course.status}
                   </span>
                 </div>
-
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleViewCourse(course._id)}
-                    className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded font-medium transition flex items-center justify-center gap-1"
-                  >
+                  <button onClick={() => handleViewCourse(course._id)} className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded font-medium flex items-center justify-center gap-1">
                     <Eye size={16} /> View
                   </button>
-                  <button
-                    onClick={() => handleUpdateCourse(course._id)}
-                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded font-medium transition"
-                  >
-                    Update
-                  </button>
-                  <button
-                    onClick={() => handleEditCourse(course._id)}
-                    className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded font-medium transition"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteCourse(course._id)}
-                    className="flex-1 bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded font-medium transition"
-                  >
-                    Delete
-                  </button>
-                  <button
-                    onClick={() => handleCreateRoom(course._id)}
-                    className="flex-1 bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded font-medium transition"
-                  >
-                    Create Room
-                  </button>
+                  <button onClick={() => handleUpdateCourse(course._id)} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded font-medium">Update</button>
+                  <button onClick={() => handleEditCourse(course._id)} className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded font-medium">Edit</button>
+                  <button onClick={() => handleDeleteCourse(course._id)} className="flex-1 bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded font-medium">Delete</button>
                 </div>
               </div>
             ))}
@@ -300,10 +407,7 @@ function InstructorDashboard() {
           <div className="flex justify-between mb-4 items-center border-b border-gray-200 pb-2">
             <h2 className="font-semibold text-gray-800 text-lg">Course Chats</h2>
             <button
-              onClick={() => {
-                setShowChatList(false);
-                closeChatCompletely();
-              }}
+              onClick={() => { setShowChatList(false); closeChatCompletely(); }}
               className="text-red-500 font-bold hover:text-red-700 transition-colors duration-200"
             >
               ✕
@@ -329,9 +433,7 @@ function InstructorDashboard() {
                 <button
                   key={conv._id || index}
                   onClick={() => openChat(conv)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${
-                    isActiveChat ? "bg-blue-50 shadow-md" : "hover:bg-gray-100"
-                  }`}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${isActiveChat ? "bg-blue-50 shadow-md" : "hover:bg-gray-100"}`}
                 >
                   <div className="flex-shrink-0 w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-medium text-sm">
                     {student.name?.charAt(0) || "S"}
@@ -342,9 +444,7 @@ function InstructorDashboard() {
                     <p className="text-sm text-gray-600 truncate">{conv.lastMessage || "No message"}</p>
                   </div>
                   {conv.unreadCount > 0 && (
-                    <span className="bg-red-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
-                      {conv.unreadCount}
-                    </span>
+                    <span className="bg-red-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">{conv.unreadCount}</span>
                   )}
                 </button>
               );
