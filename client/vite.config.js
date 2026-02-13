@@ -10,10 +10,12 @@ export default defineConfig({
   ],
   build: {
     rollupOptions: {
-      // Externalize any modules causing issues
+      // Externalize modules causing Vite build issues
       external: [
-        'chart.js',       // for react-chartjs-2
-        'react-chartjs-2' // if needed
+        'react-chartjs-2', 
+        'chart.js',
+        'lucide-react',
+        'socket.io-client'
       ],
     },
   },
